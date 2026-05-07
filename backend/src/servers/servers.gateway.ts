@@ -64,6 +64,11 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
           this.server.to(`server_${serverId}`).emit('log', data);
         });
 
+        // Forward stats from daemon to all clients in the room
+        daemonSocket.on('stats', (data: any) => {
+          this.server.to(`server_${serverId}`).emit('stats', data);
+        });
+
         daemonSocket.on('disconnect', () => {
           this.logger.log(`Disconnected from daemon for server ${serverId}`);
           this.daemonConnections.delete(serverId);

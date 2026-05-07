@@ -9,6 +9,9 @@ import dynamic from 'next/dynamic';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileManager } from "@/components/FileManager";
 
+import { ServerStats } from "@/components/ServerStats";
+import { ServerPropertiesEditor } from "@/components/ServerPropertiesEditor";
+
 const ServerTerminal = dynamic(() => import("@/components/ServerTerminal").then(mod => mod.ServerTerminal), { ssr: false });
 
 export default function ServerDetailsPage() {
@@ -80,28 +83,28 @@ export default function ServerDetailsPage() {
             <CardTitle className="text-lg">Power Controls</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button 
-              className="w-full justify-start bg-green-600 hover:bg-green-700" 
+            <Button
+              className="w-full justify-start bg-green-600 hover:bg-green-700"
               onClick={() => handlePowerAction('start')}
               disabled={actionLoading || server.status === 'ONLINE'}
             >
               <Play className="mr-2 h-4 w-4" /> Start
             </Button>
-            <Button 
+            <Button
               className="w-full justify-start bg-yellow-600 hover:bg-yellow-700"
               onClick={() => handlePowerAction('stop')}
               disabled={actionLoading || server.status === 'OFFLINE'}
             >
               <Square className="mr-2 h-4 w-4" /> Stop
             </Button>
-            <Button 
+            <Button
               className="w-full justify-start bg-red-600 hover:bg-red-700"
               onClick={() => handlePowerAction('kill')}
               disabled={actionLoading || server.status === 'OFFLINE'}
             >
               <Power className="mr-2 h-4 w-4" /> Kill
             </Button>
-            <Button 
+            <Button
               variant="outline"
               className="w-full justify-start"
               onClick={() => handlePowerAction('start')} // Simplistic restart for now
@@ -112,41 +115,36 @@ export default function ServerDetailsPage() {
           </CardContent>
         </Card>
 
-        {/* Server Info */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle className="text-lg">Server Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500 font-semibold">Address</p>
-                <p className="font-mono text-lg">{server.domain}</p>
+        <div className="col-span-2 grid gap-6">
+          {/* Server Info */}
+          <Card className="col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg">Server Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <p className="text-sm text-gray-500 font-semibold">Address</p>
+                  <p className="font-mono ">{server.domain}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500 font-semibold">Node</p>
-                <p>{server.node.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-semibold">Memory</p>
-                <p>{server.memory} MB</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 font-semibold">Disk Allocation</p>
-                <p>{server.disk} MB</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Real-time Stats */}
+          <ServerStats serverId={params.id as string} />
+        </div>
+
       </div>
 
       {/* Tabs Section */}
       <Tabs defaultValue="console" className="mt-8">
-        <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+        <TabsList className="grid w-full grid-cols-3 md:w-[600px]">
           <TabsTrigger value="console">Console</TabsTrigger>
           <TabsTrigger value="files">File Manager</TabsTrigger>
+          <TabsTrigger value="config">Configuration</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="console" className="mt-4">
           <Card>
             <CardHeader>
@@ -157,7 +155,7 @@ export default function ServerDetailsPage() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         <TabsContent value="files" className="mt-4">
           <Card>
             <CardHeader>
@@ -165,6 +163,17 @@ export default function ServerDetailsPage() {
             </CardHeader>
             <CardContent>
               <FileManager serverId={params.id as string} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="config" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Server Settings (server.properties)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ServerPropertiesEditor serverId={params.id as string} />
             </CardContent>
           </Card>
         </TabsContent>

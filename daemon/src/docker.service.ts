@@ -12,7 +12,7 @@ export class DockerService {
     return this.docker;
   }
 
-  async createMinecraftServer(name: string, domain: string, memoryMB: number) {
+  async createMinecraftServer(name: string, domain: string, memoryMB: number, softwareType: string = 'VANILLA', softwareVersion: string = 'LATEST', mods: string = '') {
     try {
       // Create a persistent host directory for this server's data
       const fs = require('fs');
@@ -44,7 +44,11 @@ export class DockerService {
         Env: [
           'EULA=TRUE',
           'ONLINE_MODE=FALSE',
-          `MEMORY=${memoryMB}M`
+          `MEMORY=${memoryMB}M`,
+          `TYPE=${softwareType}`,
+          `VERSION=${softwareVersion}`,
+          'PAUSE_WHEN_EMPTY_SECONDS=0',
+          ...(mods ? [`MODRINTH_PROJECTS=${mods}`] : [])
         ],
         Labels: {
           'mc-router.host': domain,
@@ -71,6 +75,7 @@ export class DockerService {
       throw error;
     }
   }
+
 
   async startContainer(containerId: string) {
     const container = this.docker.getContainer(containerId);
@@ -122,5 +127,10 @@ export class DockerService {
       stream.on('end', () => resolve(output));
       stream.on('error', reject);
     });
+  }
+
+  async getContainerStats(containerId: string) {
+    const container = this.docker.getContainer(containerId);
+    return await container.stats({ stream: false });
   }
 }

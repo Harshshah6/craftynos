@@ -6,11 +6,13 @@ export class ServersController {
   constructor(private readonly serversService: ServersService) {}
 
   @Post('create')
-  async createServer(@Body() body: { name: string; memory: number }) {
+  async createServer(
+    @Body() body: { name: string; memory: number; softwareType: string; softwareVersion: string; mods: string }
+  ) {
     // Hardcoded user ID for testing since we skipped full JWT auth implementation in Phase 1
     // Usually this comes from req.user extracted by the JwtAuthGuard
     const userId = "test-user-id"; 
-    return this.serversService.createServer(userId, body.name, body.memory);
+    return this.serversService.createServer(userId, body.name, body.memory, body.softwareType, body.softwareVersion, body.mods);
   }
 
   @Post(':id/power')

@@ -23,13 +23,14 @@ app.use(express.json());
 
 app.post('/servers/create', async (req, res) => {
   try {
-    const { name, domain, memoryMB } = req.body;
-    const result = await dockerService.createMinecraftServer(name, domain, memoryMB);
+    const { name, domain, memoryMB, softwareType, softwareVersion, mods } = req.body;
+    const result = await dockerService.createMinecraftServer(name, domain, memoryMB, softwareType, softwareVersion, mods);
     res.json({ success: true, ...result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
 
 app.post('/servers/:id/:action', async (req, res) => {
   try {
@@ -96,9 +97,10 @@ app.delete('/servers/:id/files', async (req, res) => {
   }
 });
 
-// WebSocket for log streaming
+// WebSocket for log streaming and stats
 io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);
+  let statsInterval: NodeJS.Timeout | null = null;
   
   socket.on('attach', async (containerName: string) => {
     console.log(`[WS] Attaching to container: ${containerName}`);
@@ -111,16 +113,50 @@ io.on('connection', (socket) => {
       }
 
       // Stream logs to client
-      // Because we now use Tty: true when creating the container, the output is raw (not multiplexed)
       stream.on('data', (chunk: Buffer) => {
         socket.emit('log', chunk.toString('utf8'));
       });
+
+      stream.on('end', () => {
+        socket.emit('log', '\r\n\x1b[33m[CraftyNOS] Container stream ended. (Container stopped or recreated)\x1b[0m\r\n');
+      });
+
+      // Start stats polling every 2.5s
+      statsInterval = setInterval(async () => {
+        try {
+          // console.log(`Polling stats for ${containerName}`);
+          const stats = await dockerService.getContainerStats(containerName);
+          // Parse stats
+          const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+          const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+          let cpuPercent = 0.0;
+          if (systemDelta > 0 && cpuDelta > 0) {
+            // Note: Docker typically calculates 1 core = 100%. 
+            // We omit multiplying by online_cpus here so it maxes at 100% for the entire host.
+            cpuPercent = (cpuDelta / systemDelta) * 100.0;
+          }
+          
+          const memoryUsage = stats.memory_stats.usage || 0;
+          const memoryLimit = stats.memory_stats.limit || 0;
+          
+          // console.log(`Emitting stats for ${containerName}: CPU ${cpuPercent}% RAM ${memoryUsage}`);
+          socket.emit('stats', {
+            cpuPercent: parseFloat(cpuPercent.toFixed(2)),
+            memoryUsage,
+            memoryLimit,
+            status: 'ONLINE'
+          });
+        } catch (e: any) {
+          console.error(`Stats error for ${containerName}:`, e.message);
+          // container might be offline
+          socket.emit('stats', { status: 'OFFLINE' });
+        }
+      }, 2500);
 
       socket.on('command', async (cmd: string) => {
         try {
           const output = await dockerService.sendCommand(containerName, cmd);
           if (output && output.trim().length > 0) {
-            // Strip trailing newlines and add a nice prefix so the user sees RCON output
             const lines = output.trim().split('\n');
             for (const line of lines) {
               socket.emit('log', `\r\n\x1b[36m[RCON]\x1b[0m ${line.replace(/\r/g, '')}`);
@@ -133,7 +169,7 @@ io.on('connection', (socket) => {
       });
 
       socket.on('disconnect', () => {
-        // Clean up stream if needed
+        if (statsInterval) clearInterval(statsInterval);
         if (stream && 'destroy' in stream) {
           (stream as any).destroy();
         }

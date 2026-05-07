@@ -13,7 +13,7 @@ export class ServersService {
     private httpService: HttpService,
   ) {}
 
-  async createServer(userId: string, name: string, memory: number) {
+  async createServer(userId: string, name: string, memory: number, softwareType: string = 'VANILLA', softwareVersion: string = 'LATEST', mods: string = '') {
     // 0. Ensure a user exists (since we don't have full auth yet)
     let user = await this.prisma.user.findFirst();
     if (!user) {
@@ -54,6 +54,9 @@ export class ServersService {
         domain: domain,
         userId: actualUserId,
         nodeId: node.id,
+        softwareType,
+        softwareVersion,
+        mods,
         status: 'STARTING',
       },
     });
@@ -68,6 +71,9 @@ export class ServersService {
           name: server.uuid,
           domain: server.domain,
           memoryMB: server.memory,
+          softwareType: server.softwareType,
+          softwareVersion: server.softwareVersion,
+          mods: server.mods
         })
       );
 
@@ -87,6 +93,7 @@ export class ServersService {
       throw new Error('Failed to communicate with Node Daemon');
     }
   }
+
 
   async powerAction(serverId: string, action: 'start' | 'stop' | 'kill') {
     const server = await this.prisma.server.findUnique({

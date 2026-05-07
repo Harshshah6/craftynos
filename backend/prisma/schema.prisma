@@ -42,6 +42,10 @@ model Server {
   port        Int?     // Optional now, using proxy
   domain      String   @unique // The domain/subdomain assigned to the server
   
+  softwareType    String   @default("VANILLA")
+  softwareVersion String   @default("LATEST")
+  mods            String   @default("")
+  
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   nodeId      String
