@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import Editor from "@monaco-editor/react";
+import { useAuth } from "@/components/auth-provider";
 
 interface FileManagerProps {
   serverId: string;
@@ -19,6 +20,7 @@ interface FileInfo {
 }
 
 export function FileManager({ serverId }: FileManagerProps) {
+  const { token } = useAuth();
   const [currentPath, setCurrentPath] = useState<string>("/");
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,15 +30,21 @@ export function FileManager({ serverId }: FileManagerProps) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!token) return;
     if (!editingFile) {
       fetchFiles(currentPath);
     }
-  }, [serverId, currentPath, editingFile]);
+  }, [serverId, currentPath, editingFile, token]);
 
   const fetchFiles = async (path: string) => {
+    if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:4000/servers/${serverId}/files?path=${encodeURIComponent(path)}`);
+      const res = await fetch(`http://localhost:4000/servers/${serverId}/files?path=${encodeURIComponent(path)}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setFiles(data.files || []);
@@ -49,6 +57,7 @@ export function FileManager({ serverId }: FileManagerProps) {
   };
 
   const handleRowClick = async (file: FileInfo) => {
+    if (!token) return;
     const newPath = currentPath.endsWith("/") ? `${currentPath}${file.name}` : `${currentPath}/${file.name}`;
     
     if (file.isDirectory) {
@@ -57,7 +66,11 @@ export function FileManager({ serverId }: FileManagerProps) {
       // Open editor
       setLoading(true);
       try {
-        const res = await fetch(`http://localhost:4000/servers/${serverId}/files/read?path=${encodeURIComponent(newPath)}`);
+        const res = await fetch(`http://localhost:4000/servers/${serverId}/files/read?path=${encodeURIComponent(newPath)}`, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
         if (res.ok) {
           const data = await res.json();
           setFileContent(data.content || "");
@@ -73,12 +86,16 @@ export function FileManager({ serverId }: FileManagerProps) {
 
   const handleDelete = async (e: React.MouseEvent, file: FileInfo) => {
     e.stopPropagation();
+    if (!token) return;
     if (!confirm(`Are you sure you want to delete ${file.name}?`)) return;
 
     const targetPath = currentPath.endsWith("/") ? `${currentPath}${file.name}` : `${currentPath}/${file.name}`;
     try {
       const res = await fetch(`http://localhost:4000/servers/${serverId}/files?path=${encodeURIComponent(targetPath)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
       });
       if (res.ok) {
         fetchFiles(currentPath);
@@ -89,12 +106,15 @@ export function FileManager({ serverId }: FileManagerProps) {
   };
 
   const handleSave = async () => {
-    if (!editingFile) return;
+    if (!editingFile || !token) return;
     setSaving(true);
     try {
       const res = await fetch(`http://localhost:4000/servers/${serverId}/files/write`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ path: editingFile, content: fileContent })
       });
       if (res.ok) {

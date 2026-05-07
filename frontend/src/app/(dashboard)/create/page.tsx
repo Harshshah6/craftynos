@@ -7,9 +7,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
 
 export default function CreateServerPage() {
   const router = useRouter();
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [memory, setMemory] = useState(2048);
@@ -19,18 +21,25 @@ export default function CreateServerPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) {
+      alert("You must be logged in to create a server.");
+      return;
+    }
     setLoading(true);
 
     try {
       const res = await fetch("http://localhost:4000/servers/create", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ name, memory, softwareType, softwareVersion, mods }),
       });
 
       if (!res.ok) throw new Error("Failed to create server");
       
-      router.push("/dashboard");
+      router.push("/");
     } catch (err) {
       console.error(err);
       alert("Failed to create server. Check backend/daemon logs.");

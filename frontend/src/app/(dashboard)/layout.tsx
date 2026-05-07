@@ -14,13 +14,9 @@ export default function DashboardLayout({
           <span className="text-xl font-bold tracking-tight">CraftyNOS</span>
         </div>
         <nav className="space-y-1 p-4">
-          <Link href="/dashboard" className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-900 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700">
+          <Link href="/" className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-900 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700">
             <Server className="h-5 w-5" />
             <span>Servers</span>
-          </Link>
-          <Link href="/dashboard/settings" className="flex items-center space-x-3 rounded-lg px-3 py-2 text-gray-900 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-700">
-            <Settings className="h-5 w-5" />
-            <span>Settings</span>
           </Link>
         </nav>
       </aside>

@@ -51,8 +51,7 @@ export class DockerService {
           ...(mods ? [`MODRINTH_PROJECTS=${mods}`] : [])
         ],
         Labels: {
-          'mc-router.host': domain,
-          'mc-router.port': '25565'
+          'mc.domain': domain,
         },
         HostConfig: {
           NetworkMode: 'craftynos-net',
@@ -132,5 +131,65 @@ export class DockerService {
   async getContainerStats(containerId: string) {
     const container = this.docker.getContainer(containerId);
     return await container.stats({ stream: false });
+  }
+
+  async getContainerStatus(containerId: string): Promise<{
+    dockerState: string;
+    status: 'ONLINE' | 'OFFLINE' | 'STARTING' | 'RESTARTING' | 'CRASHED';
+    startedAt: string | null;
+  }> {
+    try {
+      const container = this.docker.getContainer(containerId);
+      const info = await container.inspect();
+      const state = info.State;
+
+      // Map Docker states → our normalized status
+      let status: 'ONLINE' | 'OFFLINE' | 'STARTING' | 'RESTARTING' | 'CRASHED';
+      if (state.Running) {
+        status = 'ONLINE';
+      } else if (state.Restarting) {
+        status = 'RESTARTING';
+      } else if (state.Dead || state.OOMKilled || state.ExitCode !== 0) {
+        status = 'CRASHED';
+      } else if (state.Status === 'created') {
+        status = 'STARTING';
+      } else {
+        status = 'OFFLINE';
+      }
+
+      return {
+        dockerState: state.Status,  // raw: 'running' | 'exited' | 'restarting' | 'paused' | 'dead' | 'created'
+        status,
+        startedAt: state.StartedAt || null,
+      };
+    } catch (err: any) {
+      if (err?.statusCode === 404) {
+        return { dockerState: 'not_found', status: 'OFFLINE', startedAt: null };
+      }
+      throw err;
+    }
+  }
+
+  async deleteMinecraftServer(name: string) {
+    const container = this.docker.getContainer(`craftynos-${name}`);
+    try {
+      // Force remove stops running container and removes it in a single step
+      await container.remove({ force: true });
+    } catch (err: any) {
+      if (err?.statusCode !== 404) {
+        console.error(`Error removing container craftynos-${name}:`, err.message);
+      }
+    }
+
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const dataDir = path.resolve(process.cwd(), 'server-data', name);
+      if (fs.existsSync(dataDir)) {
+        fs.rmSync(dataDir, { recursive: true, force: true });
+      }
+    } catch (err: any) {
+      console.error(`Error deleting host directory for ${name}:`, err.message);
+    }
   }
 }

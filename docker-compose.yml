@@ -22,11 +22,9 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
-  mc-router:
-    image: itzg/mc-router
-    container_name: craftynos-mc-router
-    environment:
-      - IN_DOCKER=true
+  mc-proxy:
+    build: ./mc-proxy
+    container_name: craftynos-mc-proxy
     ports:
       - "25565:25565"
     volumes:

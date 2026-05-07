@@ -46,6 +46,26 @@ app.post('/servers/:id/:action', async (req, res) => {
   }
 });
 
+app.get('/servers/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const statusInfo = await dockerService.getContainerStatus(id);
+    res.json({ success: true, ...statusInfo });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/servers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dockerService.deleteMinecraftServer(id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // File Manager Endpoints
 app.get('/servers/:id/files', async (req, res) => {
   try {
@@ -104,80 +124,131 @@ io.on('connection', (socket) => {
   
   socket.on('attach', async (containerName: string) => {
     console.log(`[WS] Attaching to container: ${containerName}`);
-    try {
-      const stream = await dockerService.getContainerStream(containerName);
-      
-      if (!stream) {
-        socket.emit('log', `\r\n\x1b[31mError: Could not attach to ${containerName}\x1b[0m\r\n`);
-        return;
+    
+    let activeStream: any = null;
+    let isSocketConnected = true;
+    let retryTimeout: NodeJS.Timeout | null = null;
+
+    const cleanupStream = () => {
+      if (activeStream) {
+        if ('destroy' in activeStream) {
+          try { activeStream.destroy(); } catch {}
+        }
+        activeStream = null;
       }
+    };
 
-      // Stream logs to client
-      stream.on('data', (chunk: Buffer) => {
-        socket.emit('log', chunk.toString('utf8'));
-      });
+    const attachStream = async () => {
+      if (!isSocketConnected) return;
+      cleanupStream();
 
-      stream.on('end', () => {
-        socket.emit('log', '\r\n\x1b[33m[CraftyNOS] Container stream ended. (Container stopped or recreated)\x1b[0m\r\n');
-      });
+      try {
+        const statusInfo = await dockerService.getContainerStatus(containerName);
+        if (statusInfo.dockerState === 'not_found') {
+          socket.emit('log', `\r\n\x1b[33m[CraftyNOS] Container not found. Checking again soon...\x1b[0m\r\n`);
+          scheduleRetry();
+          return;
+        }
 
-      // Start stats polling every 2.5s
-      statsInterval = setInterval(async () => {
-        try {
-          // console.log(`Polling stats for ${containerName}`);
-          const stats = await dockerService.getContainerStats(containerName);
-          // Parse stats
-          const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
-          const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
-          let cpuPercent = 0.0;
-          if (systemDelta > 0 && cpuDelta > 0) {
-            // Note: Docker typically calculates 1 core = 100%. 
-            // We omit multiplying by online_cpus here so it maxes at 100% for the entire host.
-            cpuPercent = (cpuDelta / systemDelta) * 100.0;
+        const stream = await dockerService.getContainerStream(containerName);
+        if (!stream) {
+          scheduleRetry();
+          return;
+        }
+
+        activeStream = stream;
+
+        stream.on('data', (chunk: Buffer) => {
+          if (isSocketConnected) {
+            socket.emit('log', chunk.toString('utf8'));
           }
-          
-          const memoryUsage = stats.memory_stats.usage || 0;
-          const memoryLimit = stats.memory_stats.limit || 0;
-          
-          // console.log(`Emitting stats for ${containerName}: CPU ${cpuPercent}% RAM ${memoryUsage}`);
-          socket.emit('stats', {
-            cpuPercent: parseFloat(cpuPercent.toFixed(2)),
-            memoryUsage,
-            memoryLimit,
-            status: 'ONLINE'
-          });
-        } catch (e: any) {
-          console.error(`Stats error for ${containerName}:`, e.message);
-          // container might be offline
-          socket.emit('stats', { status: 'OFFLINE' });
-        }
-      }, 2500);
+        });
 
-      socket.on('command', async (cmd: string) => {
-        try {
-          const output = await dockerService.sendCommand(containerName, cmd);
-          if (output && output.trim().length > 0) {
-            const lines = output.trim().split('\n');
-            for (const line of lines) {
-              socket.emit('log', `\r\n\x1b[36m[RCON]\x1b[0m ${line.replace(/\r/g, '')}`);
-            }
-            socket.emit('log', '\r\n');
+        stream.on('end', () => {
+          cleanupStream();
+          if (isSocketConnected) {
+            socket.emit('log', '\r\n\x1b[33m[CraftyNOS] Container stream ended. Re-attaching...\x1b[0m\r\n');
+            scheduleRetry();
           }
-        } catch (err: any) {
-          socket.emit('log', `\r\n\x1b[31m[RCON Error] ${err.message}\x1b[0m\r\n`);
-        }
-      });
+        });
 
-      socket.on('disconnect', () => {
-        if (statsInterval) clearInterval(statsInterval);
-        if (stream && 'destroy' in stream) {
-          (stream as any).destroy();
-        }
-      });
+        stream.on('error', (err: any) => {
+          cleanupStream();
+          if (isSocketConnected) {
+            console.error(`[WS] Stream error for ${containerName}:`, err.message);
+            scheduleRetry();
+          }
+        });
 
-    } catch (e: any) {
-      socket.emit('log', `\r\n\x1b[31mError: ${e.message}\x1b[0m\r\n`);
-    }
+      } catch (err: any) {
+        cleanupStream();
+        if (isSocketConnected) {
+          scheduleRetry();
+        }
+      }
+    };
+
+    const scheduleRetry = () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (!isSocketConnected) return;
+      retryTimeout = setTimeout(attachStream, 3000);
+    };
+
+    // Start initial attachment
+    attachStream();
+
+    // Start stats polling every 2.5s
+    statsInterval = setInterval(async () => {
+      try {
+        // console.log(`Polling stats for ${containerName}`);
+        const stats = await dockerService.getContainerStats(containerName);
+        // Parse stats
+        const cpuDelta = stats.cpu_stats.cpu_usage.total_usage - stats.precpu_stats.cpu_usage.total_usage;
+        const systemDelta = stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+        let cpuPercent = 0.0;
+        if (systemDelta > 0 && cpuDelta > 0) {
+          // Note: Docker typically calculates 1 core = 100%. 
+          // We omit multiplying by online_cpus here so it maxes at 100% for the entire host.
+          cpuPercent = (cpuDelta / systemDelta) * 100.0;
+        }
+        
+        const memoryUsage = stats.memory_stats.usage || 0;
+        const memoryLimit = stats.memory_stats.limit || 0;
+        
+        // console.log(`Emitting stats for ${containerName}: CPU ${cpuPercent}% RAM ${memoryUsage}`);
+        socket.emit('stats', {
+          cpuPercent: parseFloat(cpuPercent.toFixed(2)),
+          memoryUsage,
+          memoryLimit,
+          status: 'ONLINE'
+        });
+      } catch (e: any) {
+        // container might be offline
+        socket.emit('stats', { status: 'OFFLINE' });
+      }
+    }, 2500);
+
+    socket.on('command', async (cmd: string) => {
+      try {
+        const output = await dockerService.sendCommand(containerName, cmd);
+        if (output && output.trim().length > 0) {
+          const lines = output.trim().split('\n');
+          for (const line of lines) {
+            socket.emit('log', `\r\n\x1b[36m[RCON]\x1b[0m ${line.replace(/\r/g, '')}`);
+          }
+          socket.emit('log', '\r\n');
+        }
+      } catch (err: any) {
+        socket.emit('log', `\r\n\x1b[31m[RCON Error] ${err.message}\x1b[0m\r\n`);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      isSocketConnected = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (statsInterval) clearInterval(statsInterval);
+      cleanupStream();
+    });
   });
 });
 

@@ -31,7 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
     } else {
-      if (pathname.startsWith("/dashboard")) {
+      const publicRoutes = ["/login", "/register"];
+      if (!publicRoutes.includes(pathname)) {
         router.push("/login");
       }
     }
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("user", JSON.stringify(newUser));
     setToken(newToken);
     setUser(newUser);
-    router.push("/dashboard");
+    router.push("/");
   };
 
   const logout = () => {

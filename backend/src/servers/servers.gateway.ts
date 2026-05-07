@@ -30,7 +30,7 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
-    // In a real app, leave rooms and cleanup connections if room is empty
+    setTimeout(() => this.cleanupDaemonConnections(), 100);
   }
 
   @SubscribeMessage('joinServerConsole')
@@ -44,7 +44,7 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
     // If we aren't already listening to this server's daemon, connect to it
     if (!this.daemonConnections.has(serverId)) {
       try {
-        const mcServer = await this.serversService.getServer(serverId);
+        const mcServer = await this.serversService.getServerInternal(serverId);
         if (!mcServer) return;
 
         // Connect to the specific node's daemon
@@ -86,6 +86,23 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
   ) {
     client.leave(`server_${serverId}`);
     this.logger.log(`Client ${client.id} left console for server ${serverId}`);
+    setTimeout(() => this.cleanupDaemonConnections(), 100);
+  }
+
+  private cleanupDaemonConnections() {
+    for (const [serverId, daemonSocket] of this.daemonConnections.entries()) {
+      const room = this.server.sockets.adapter.rooms.get(`server_${serverId}`);
+      const clientCount = room ? room.size : 0;
+      if (clientCount === 0) {
+        this.logger.log(`Cleaning up unused daemon connection for server ${serverId}`);
+        try {
+          daemonSocket.disconnect();
+        } catch (err) {
+          this.logger.error(`Error disconnecting daemon socket:`, err);
+        }
+        this.daemonConnections.delete(serverId);
+      }
+    }
   }
 
   @SubscribeMessage('sendCommand')

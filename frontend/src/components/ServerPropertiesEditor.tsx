@@ -4,26 +4,34 @@ import { useState, useEffect } from "react";
 import { Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Editor from "@monaco-editor/react";
+import { useAuth } from "@/components/auth-provider";
 
 interface ServerPropertiesEditorProps {
   serverId: string;
 }
 
 export function ServerPropertiesEditor({ serverId }: ServerPropertiesEditorProps) {
+  const { token } = useAuth();
   const [fileContent, setFileContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) return;
     fetchProperties();
-  }, [serverId]);
+  }, [serverId, token]);
 
   const fetchProperties = async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`http://localhost:4000/servers/${serverId}/files/read?path=server.properties`);
+      const res = await fetch(`http://localhost:4000/servers/${serverId}/files/read?path=server.properties`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
       if (res.ok) {
         const data = await res.json();
         setFileContent(data.content || "");
@@ -38,11 +46,15 @@ export function ServerPropertiesEditor({ serverId }: ServerPropertiesEditorProps
   };
 
   const handleSave = async () => {
+    if (!token) return;
     setSaving(true);
     try {
       const res = await fetch(`http://localhost:4000/servers/${serverId}/files/write`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          "Authorization": `Bearer ${token}`
+        },
         body: JSON.stringify({ path: 'server.properties', content: fileContent })
       });
       if (!res.ok) {

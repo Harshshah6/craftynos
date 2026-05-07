@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -14,14 +14,7 @@ export class ServersService {
   ) {}
 
   async createServer(userId: string, name: string, memory: number, softwareType: string = 'VANILLA', softwareVersion: string = 'LATEST', mods: string = '') {
-    // 0. Ensure a user exists (since we don't have full auth yet)
-    let user = await this.prisma.user.findFirst();
-    if (!user) {
-      user = await this.prisma.user.create({
-        data: { email: 'test@craftynos.com', password: 'hashedpassword' }
-      });
-    }
-    const actualUserId = user.id;
+    const actualUserId = userId;
 
     // 1. Find an available node
     let node = await this.prisma.node.findFirst();
@@ -42,7 +35,7 @@ export class ServersService {
     // Create a subdomain based on the server name and a random slug
     const cleanName = name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
     const shortUuid = crypto.randomUUID().split('-')[0];
-    const domain = `${cleanName}-${shortUuid}.craftynos.local`;
+    const domain = `${cleanName}-${shortUuid}.lulli.qzz.io`;
 
     // 3. Save to DB
     const server = await this.prisma.server.create({
@@ -95,21 +88,27 @@ export class ServersService {
   }
 
 
-  async powerAction(serverId: string, action: 'start' | 'stop' | 'kill') {
-    const server = await this.prisma.server.findUnique({
-      where: { id: serverId },
-      include: { node: true },
-    });
+  async powerAction(userId: string, serverId: string, action: 'start' | 'stop' | 'kill' | 'restart') {
+    const server = await this.getOwnedServer(userId, serverId);
 
-    if (!server) throw new Error('Server not found');
+    if(action === 'restart') {
+      await this.powerAction(userId, serverId, 'stop');
+      await this.powerAction(userId, serverId, 'start');
+      return { success: true };
+    }
 
     const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/craftynos-${server.uuid}/${action}`;
     
     try {
       await firstValueFrom(this.httpService.post(daemonUrl));
       
-      let newStatus: any = 'STARTING';
-      if (action === 'stop' || action === 'kill') newStatus = 'OFFLINE';
+      // Update logic for all actions
+      let newStatus: any;
+      if (action === 'start') {
+        newStatus = 'ONLINE';
+      } else if (action === 'stop' || action === 'kill') {
+        newStatus = 'OFFLINE';
+      }
 
       await this.prisma.server.update({
         where: { id: server.id },
@@ -123,13 +122,17 @@ export class ServersService {
   }
 
   async getUserServers(userId: string) {
-    // For Phase 2 testing without auth, return all servers
     return this.prisma.server.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getServer(id: string) {
+  async getServer(userId: string, id: string) {
+    return this.getOwnedServer(userId, id);
+  }
+
+  async getServerInternal(id: string) {
     return this.prisma.server.findUnique({
       where: { id },
       include: { node: true },
@@ -137,35 +140,93 @@ export class ServersService {
   }
 
   // File Manager Proxies
-  async listFiles(serverId: string, path: string) {
-    const server = await this.getServer(serverId);
-    if (!server) throw new Error('Server not found');
+  async listFiles(userId: string, serverId: string, path: string) {
+    const server = await this.getOwnedServer(userId, serverId);
     const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files?path=${encodeURIComponent(path)}`;
     const response = await firstValueFrom(this.httpService.get(daemonUrl));
     return response.data;
   }
 
-  async readFile(serverId: string, path: string) {
-    const server = await this.getServer(serverId);
-    if (!server) throw new Error('Server not found');
+  async readFile(userId: string, serverId: string, path: string) {
+    const server = await this.getOwnedServer(userId, serverId);
     const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files/read?path=${encodeURIComponent(path)}`;
     const response = await firstValueFrom(this.httpService.get(daemonUrl));
     return response.data;
   }
 
-  async writeFile(serverId: string, path: string, content: string) {
-    const server = await this.getServer(serverId);
-    if (!server) throw new Error('Server not found');
+  async writeFile(userId: string, serverId: string, path: string, content: string) {
+    const server = await this.getOwnedServer(userId, serverId);
     const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files/write`;
     const response = await firstValueFrom(this.httpService.put(daemonUrl, { path, content }));
     return response.data;
   }
 
-  async deleteFile(serverId: string, path: string) {
-    const server = await this.getServer(serverId);
-    if (!server) throw new Error('Server not found');
+  async getServerStatus(userId: string, serverId: string) {
+    const server = await this.getOwnedServer(userId, serverId);
+
+    const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/craftynos-${server.uuid}/status`;
+    try {
+      const response = await firstValueFrom(this.httpService.get(daemonUrl));
+      const { status, dockerState, startedAt } = response.data;
+
+      // Sync DB status with real container state
+      if (status !== server.status) {
+        await this.prisma.server.update({
+          where: { id: serverId },
+          data: { status },
+        });
+      }
+
+      return { status, dockerState, startedAt };
+    } catch (error: any) {
+      this.logger.error(`Status check failed for ${serverId}: ${error.message}`);
+      // If daemon is unreachable, return the last known DB status
+      return { status: server.status, dockerState: 'unknown', startedAt: null };
+    }
+  }
+
+  async deleteFile(userId: string, serverId: string, path: string) {
+    const server = await this.getOwnedServer(userId, serverId);
     const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files?path=${encodeURIComponent(path)}`;
     const response = await firstValueFrom(this.httpService.delete(daemonUrl));
     return response.data;
+  }
+
+  async deleteServer(userId: string, serverId: string) {
+    const server = await this.getOwnedServer(userId, serverId);
+
+    // Call Daemon to completely wipe container & server-data directory
+    try {
+      const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}`;
+      this.logger.log(`Calling daemon at DELETE ${daemonUrl} to destroy server ${server.id}`);
+      await firstValueFrom(this.httpService.delete(daemonUrl));
+    } catch (error: any) {
+      this.logger.error(`Failed to delete server from daemon: ${error.message}`);
+      // Continue DB deletion even if daemon call fails to ensure DB isn't stuck with dead records
+    }
+
+    // Delete from DB
+    await this.prisma.server.delete({
+      where: { id: serverId },
+    });
+
+    return { success: true };
+  }
+
+  async getOwnedServer(userId: string, serverId: string) {
+    const server = await this.prisma.server.findUnique({
+      where: { id: serverId },
+      include: { node: true },
+    });
+
+    if (!server) {
+      throw new NotFoundException('Server not found');
+    }
+
+    if (server.userId !== userId) {
+      throw new ForbiddenException('Access denied: You do not own this server');
+    }
+
+    return server;
   }
 }
