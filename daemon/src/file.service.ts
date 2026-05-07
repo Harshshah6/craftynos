@@ -86,4 +86,17 @@ export class FileService {
     }
     return { success: true };
   }
+
+  async renameFile(serverId: string, oldPath: string, newPath: string) {
+    const safeOldPath = await this.getSafePath(serverId, oldPath);
+    const safeNewPath = await this.getSafePath(serverId, newPath);
+
+    // Ensure destination parent directory exists
+    const destDir = path.dirname(safeNewPath);
+    await fs.mkdir(destDir, { recursive: true });
+
+    // Perform rename/move
+    await fs.rename(safeOldPath, safeNewPath);
+    return { success: true };
+  }
 }

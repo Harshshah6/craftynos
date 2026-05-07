@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Folder, FileText, ChevronRight, ArrowLeft, Trash2, Save, X } from "lucide-react";
+import { Folder, FileText, ChevronRight, ArrowLeft, Trash2, Save, X, Edit2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
@@ -28,6 +28,51 @@ export function FileManager({ serverId }: FileManagerProps) {
   const [editingFile, setEditingFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
   const [saving, setSaving] = useState(false);
+
+  const [renamingFile, setRenamingFile] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>("");
+
+  const startRename = (e: React.MouseEvent, file: FileInfo) => {
+    e.stopPropagation();
+    setRenamingFile(file.name);
+    setRenameValue(file.name);
+  };
+
+  const handleRename = async (e: React.FormEvent | React.MouseEvent | React.KeyboardEvent, file: FileInfo) => {
+    e.stopPropagation();
+    if (!token) return;
+    if (!renameValue || renameValue === file.name) {
+      setRenamingFile(null);
+      return;
+    }
+
+    const oldPath = currentPath.endsWith("/") ? `${currentPath}${file.name}` : `${currentPath}/${file.name}`;
+    // If the new name starts with a slash, treat it as relative to root, otherwise relative to currentPath
+    let newPath = renameValue;
+    if (!newPath.startsWith("/")) {
+      newPath = currentPath.endsWith("/") ? `${currentPath}${newPath}` : `${currentPath}/${newPath}`;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:4000/servers/${serverId}/files/rename`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ oldPath, newPath })
+      });
+      if (res.ok) {
+        setRenamingFile(null);
+        fetchFiles(currentPath);
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to rename/move file");
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -264,7 +309,7 @@ export function FileManager({ serverId }: FileManagerProps) {
                 <TableRow 
                   key={file.name} 
                   className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
-                  onClick={() => handleRowClick(file)}
+                  onClick={() => renamingFile !== file.name && handleRowClick(file)}
                 >
                   <TableCell className="font-medium flex items-center space-x-3">
                     {file.isDirectory ? (
@@ -272,7 +317,25 @@ export function FileManager({ serverId }: FileManagerProps) {
                     ) : (
                       <FileText className="h-5 w-5 text-gray-500" />
                     )}
-                    <span>{file.name}</span>
+                    {renamingFile === file.name ? (
+                      <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          className="px-2 py-1 text-sm border rounded bg-white dark:bg-zinc-900 border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleRename(e, file);
+                            if (e.key === 'Escape') setRenamingFile(null);
+                          }}
+                        />
+                        <Button size="sm" variant="outline" className="px-2 py-1 h-7 text-xs" onClick={(e) => handleRename(e, file)}>Save</Button>
+                        <Button size="sm" variant="ghost" className="px-2 py-1 h-7 text-xs" onClick={() => setRenamingFile(null)}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <span>{file.name}</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-gray-500">
                     {file.isDirectory ? "--" : formatSize(file.size)}
@@ -280,15 +343,27 @@ export function FileManager({ serverId }: FileManagerProps) {
                   <TableCell className="text-gray-500">
                     {new Date(file.lastModified).toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
-                      onClick={(e) => handleDelete(e, file)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {renamingFile !== file.name && (
+                      <>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50 mr-1"
+                          onClick={(e) => startRename(e, file)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                          onClick={(e) => handleDelete(e, file)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

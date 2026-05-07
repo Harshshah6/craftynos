@@ -57,6 +57,11 @@ export class ServersController {
     return this.serversService.deleteFile(req.user.id, id, path);
   }
 
+  @Post(':id/files/rename')
+  async renameFile(@Req() req: any, @Param('id') id: string, @Body() body: { oldPath: string; newPath: string }) {
+    return this.serversService.renameFile(req.user.id, id, body.oldPath, body.newPath);
+  }
+
   @Delete(':id')
   async deleteServer(@Req() req: any, @Param('id') id: string) {
     return this.serversService.deleteServer(req.user.id, id);

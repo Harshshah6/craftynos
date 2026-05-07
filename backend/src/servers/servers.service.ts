@@ -192,6 +192,15 @@ export class ServersService {
     return response.data;
   }
 
+  async renameFile(userId: string, serverId: string, oldPath: string, newPath: string) {
+    const server = await this.getOwnedServer(userId, serverId);
+    const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files/rename`;
+    const response = await firstValueFrom(
+      this.httpService.post(daemonUrl, { oldPath, newPath })
+    );
+    return response.data;
+  }
+
   async deleteServer(userId: string, serverId: string) {
     const server = await this.getOwnedServer(userId, serverId);
 

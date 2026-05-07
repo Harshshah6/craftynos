@@ -19,8 +19,8 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
   private logger = new Logger(ServersGateway.name);
   
-  // Map of serverId -> Socket connection to the daemon
-  private daemonConnections = new Map<string, ClientSocket>();
+  // Map of serverId -> Socket connection to the daemon (or 'connecting' placeholder to lock against race conditions)
+  private daemonConnections = new Map<string, ClientSocket | 'connecting'>();
 
   constructor(private readonly serversService: ServersService) {}
 
@@ -43,9 +43,14 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     // If we aren't already listening to this server's daemon, connect to it
     if (!this.daemonConnections.has(serverId)) {
+      // Set synchronously as 'connecting' to prevent race conditions during the async DB query below
+      this.daemonConnections.set(serverId, 'connecting');
       try {
         const mcServer = await this.serversService.getServerInternal(serverId);
-        if (!mcServer) return;
+        if (!mcServer) {
+          this.daemonConnections.delete(serverId);
+          return;
+        }
 
         // Connect to the specific node's daemon
         const daemonUrl = `${mcServer.node.address}:${mcServer.node.daemonPort}`;
@@ -75,6 +80,7 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
         });
       } catch (err) {
         this.logger.error(`Failed to connect to daemon for server ${serverId}`, err);
+        this.daemonConnections.delete(serverId);
       }
     }
   }
@@ -96,7 +102,9 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
       if (clientCount === 0) {
         this.logger.log(`Cleaning up unused daemon connection for server ${serverId}`);
         try {
-          daemonSocket.disconnect();
+          if (daemonSocket && daemonSocket !== 'connecting') {
+            daemonSocket.disconnect();
+          }
         } catch (err) {
           this.logger.error(`Error disconnecting daemon socket:`, err);
         }
@@ -113,11 +121,11 @@ export class ServersGateway implements OnGatewayConnection, OnGatewayDisconnect 
     this.logger.log(`Received command from client for server ${payload.serverId}: ${payload.command}`);
     // Basic auth/check here in production to ensure client is in room
     const daemonSocket = this.daemonConnections.get(payload.serverId);
-    if (daemonSocket) {
+    if (daemonSocket && daemonSocket !== 'connecting') {
       this.logger.log(`Found daemon socket, forwarding command`);
       daemonSocket.emit('command', payload.command);
     } else {
-      this.logger.warn(`No daemon socket found for server ${payload.serverId}`);
+      this.logger.warn(`No daemon socket found or still connecting for server ${payload.serverId}`);
     }
   }
 }

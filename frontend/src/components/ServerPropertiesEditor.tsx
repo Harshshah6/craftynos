@@ -8,9 +8,10 @@ import { useAuth } from "@/components/auth-provider";
 
 interface ServerPropertiesEditorProps {
   serverId: string;
+  onSaved?: () => void;
 }
 
-export function ServerPropertiesEditor({ serverId }: ServerPropertiesEditorProps) {
+export function ServerPropertiesEditor({ serverId, onSaved }: ServerPropertiesEditorProps) {
   const { token } = useAuth();
   const [fileContent, setFileContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -59,6 +60,9 @@ export function ServerPropertiesEditor({ serverId }: ServerPropertiesEditorProps
       });
       if (!res.ok) {
         throw new Error("Failed to save changes");
+      }
+      if (onSaved) {
+        onSaved();
       }
     } catch (err: any) {
       alert(err.message);

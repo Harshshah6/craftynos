@@ -117,6 +117,19 @@ app.delete('/servers/:id/files', async (req, res) => {
   }
 });
 
+app.post('/servers/:id/files/rename', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { oldPath, newPath } = req.body;
+    if (!oldPath || !newPath) return res.status(400).json({ error: 'oldPath and newPath are required' });
+    
+    await fileService.renameFile(id, oldPath, newPath);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // WebSocket for log streaming and stats
 io.on('connection', (socket) => {
   console.log(`[WS] Client connected: ${socket.id}`);

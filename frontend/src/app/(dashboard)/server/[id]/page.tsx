@@ -36,6 +36,7 @@ export default function ServerDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [showRestartBanner, setShowRestartBanner] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   // ── Initial server fetch (name, domain, etc.) ──────────────────────────
@@ -306,11 +307,48 @@ export default function ServerDetailsPage() {
               <CardTitle>Server Settings (server.properties)</CardTitle>
             </CardHeader>
             <CardContent>
-              <ServerPropertiesEditor serverId={params.id as string} />
+              <ServerPropertiesEditor 
+                serverId={params.id as string} 
+                onSaved={() => setShowRestartBanner(true)}
+              />
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Floating Glassmorphic Quick Restart Banner */}
+      {showRestartBanner && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-4 p-4 rounded-xl border border-yellow-200/50 bg-white/75 dark:border-yellow-900/30 dark:bg-zinc-950/80 backdrop-blur-md shadow-2xl animate-in fade-in slide-in-from-bottom-5 duration-300 max-w-sm">
+          <div className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
+          </div>
+          <div className="flex-1 space-y-0.5">
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Configuration saved!</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Restart the server to apply changes.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-xs h-8 px-2.5 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              onClick={() => setShowRestartBanner(false)}
+            >
+              Dismiss
+            </Button>
+            <Button 
+              size="sm" 
+              className="text-xs h-8 bg-yellow-600 hover:bg-yellow-700 text-white"
+              onClick={() => {
+                handlePowerAction('restart');
+                setShowRestartBanner(false);
+              }}
+            >
+              Restart Now
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
