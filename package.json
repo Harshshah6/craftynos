@@ -1,0 +1,17 @@
+{
+  "name": "craftynos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minecraft Server Hosting Platform",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "daemon"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run start:dev --workspace=backend",
+    "dev:daemon": "npm run dev --workspace=daemon",
+    "dev": "npm run dev:frontend & npm run dev:backend & npm run dev:daemon"
+  }
+}

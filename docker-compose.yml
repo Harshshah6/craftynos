@@ -1,0 +1,44 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: craftynos-postgres
+    environment:
+      POSTGRES_USER: craftynos
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: craftynos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: craftynos-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  mc-router:
+    image: itzg/mc-router
+    container_name: craftynos-mc-router
+    environment:
+      - IN_DOCKER=true
+    ports:
+      - "25565:25565"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - craftynos-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  craftynos-net:
+    name: craftynos-net

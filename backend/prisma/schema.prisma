@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  servers   Server[]
+}
+
+model Node {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  address     String   // IP or hostname
+  daemonPort  Int      @default(8080)
+  memoryTotal Int      // in MB
+  memoryAlloc Int      @default(0) // memory allocated to servers
+  diskTotal   Int      // in MB
+  diskAlloc   Int      @default(0)
+  isOnline    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  servers     Server[]
+}
+
+model Server {
+  id          String   @id @default(uuid())
+  name        String
+  uuid        String   @unique @default(uuid())
+  status      ServerStatus @default(OFFLINE)
+  memory      Int      // Allocated RAM in MB
+  disk        Int      // Allocated Disk in MB
+  cpuLimit    Int      // CPU percentage limit
+  port        Int?     // Optional now, using proxy
+  domain      String   @unique // The domain/subdomain assigned to the server
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  nodeId      String
+  node        Node     @relation(fields: [nodeId], references: [id])
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ServerStatus {
+  STARTING
+  ONLINE
+  STOPPING
+  OFFLINE
+  CRASHED
+}
