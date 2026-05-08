@@ -82,9 +82,10 @@ app.get('/servers/:id/files/read', async (req, res) => {
   try {
     const { id } = req.params;
     const path = req.query.path as string;
+    const encoding = (req.query.encoding as string) || 'utf8';
     if (!path) return res.status(400).json({ error: 'Path is required' });
     
-    const content = await fileService.readFile(id, path);
+    const content = await fileService.readFile(id, path, encoding);
     res.json({ success: true, content });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -94,10 +95,10 @@ app.get('/servers/:id/files/read', async (req, res) => {
 app.put('/servers/:id/files/write', async (req, res) => {
   try {
     const { id } = req.params;
-    const { path, content } = req.body;
+    const { path, content, encoding } = req.body;
     if (!path) return res.status(400).json({ error: 'Path is required' });
     
-    await fileService.writeFile(id, path, content);
+    await fileService.writeFile(id, path, content, encoding);
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

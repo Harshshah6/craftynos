@@ -147,17 +147,20 @@ export class ServersService {
     return response.data;
   }
 
-  async readFile(userId: string, serverId: string, path: string) {
+  async readFile(userId: string, serverId: string, path: string, encoding?: string) {
     const server = await this.getOwnedServer(userId, serverId);
-    const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files/read?path=${encodeURIComponent(path)}`;
+    let daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files/read?path=${encodeURIComponent(path)}`;
+    if (encoding) {
+      daemonUrl += `&encoding=${encoding}`;
+    }
     const response = await firstValueFrom(this.httpService.get(daemonUrl));
     return response.data;
   }
 
-  async writeFile(userId: string, serverId: string, path: string, content: string) {
+  async writeFile(userId: string, serverId: string, path: string, content: string, encoding?: string) {
     const server = await this.getOwnedServer(userId, serverId);
     const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/files/write`;
-    const response = await firstValueFrom(this.httpService.put(daemonUrl, { path, content }));
+    const response = await firstValueFrom(this.httpService.put(daemonUrl, { path, content, encoding }));
     return response.data;
   }
 

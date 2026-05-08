@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Cpu, MemoryStick, Layers, Code } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 
 export default function CreateServerPage() {
@@ -47,33 +46,54 @@ export default function CreateServerPage() {
     }
   };
 
-  return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Create Server</h1>
-      </div>
+  // Navbar Cancel Actions
+  const navbarAction = (
+    <Link href="/">
+      <button className="border border-zinc-300 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 text-xs md:text-[14px] font-medium px-4 py-1.5 md:py-2 rounded-full active-scale transition-all flex items-center space-x-1">
+        <ArrowLeft className="h-3.5 w-3.5" />
+        <span>Cancel</span>
+      </button>
+    </Link>
+  );
 
-      <Card>
-        <form onSubmit={handleCreate}>
-          <CardHeader>
-            <CardTitle>Server Configuration</CardTitle>
-            <CardDescription>Setup your new Minecraft server container.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+  return (
+    <div className="flex-1 flex flex-col min-h-screen bg-apple-canvas-parchment">
+      {/* Navigation */}
+      <Navbar title="Deploy Virtual Node" actions={navbarAction} />
+
+      <div className="max-w-2xl mx-auto w-full px-6 py-12">
+        <div className="border border-apple-hairline rounded-[18px] bg-apple-canvas p-8 md:p-10 shadow-[0_10px_30px_rgba(0,0,0,0.02)] space-y-8">
+          {/* Card Header */}
+          <div className="space-y-2 border-b border-zinc-100 pb-6 text-center md:text-left">
+            <h3 className="text-[24px] font-semibold text-apple-ink tracking-apple-tight">Instance Configuration</h3>
+            <p className="text-[14px] text-zinc-500">Specify the container allocation, core software type, and automations for your node.</p>
+          </div>
+
+          <form onSubmit={handleCreate} className="space-y-6">
+            {/* Server Name */}
             <div className="space-y-2">
-              <Label htmlFor="name">Server Name</Label>
-              <Input 
+              <label htmlFor="name" className="text-[14px] font-semibold text-apple-ink flex items-center space-x-2">
+                <span>Server Name</span>
+              </label>
+              <input 
                 id="name" 
+                type="text"
                 placeholder="My Awesome Server" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                className="w-full h-11 px-4 border border-apple-hairline rounded-[11px] text-[15px] focus:outline-none focus:ring-2 focus:ring-apple-primary-focus focus:border-transparent transition-all placeholder-zinc-400 font-sans"
               />
+              <p className="text-[12px] text-zinc-400">A human-readable label used to identify this container in the index.</p>
             </div>
             
+            {/* Memory Allocation */}
             <div className="space-y-2">
-              <Label htmlFor="memory">Memory Allocation (MB)</Label>
-              <Input 
+              <label htmlFor="memory" className="text-[14px] font-semibold text-apple-ink flex items-center space-x-2">
+                <MemoryStick className="h-4 w-4 text-zinc-400" />
+                <span>Memory Allocation (MB)</span>
+              </label>
+              <input 
                 id="memory" 
                 type="number"
                 min={512}
@@ -82,37 +102,55 @@ export default function CreateServerPage() {
                 value={memory}
                 onChange={(e) => setMemory(Number(e.target.value))}
                 required
+                className="w-full h-11 px-4 border border-apple-hairline rounded-[11px] text-[15px] focus:outline-none focus:ring-2 focus:ring-apple-primary-focus focus:border-transparent transition-all font-mono"
               />
-              <p className="text-sm text-gray-500">Amount of RAM dedicated to this server.</p>
+              <p className="text-[12px] text-zinc-400">Memory bounds dedicated to the Java Virtual Machine. Min: 512MB, Max: 16000MB.</p>
             </div>
 
+            {/* Software Type */}
             <div className="space-y-2">
-              <Label htmlFor="softwareType">Software Type</Label>
-              <select
-                id="softwareType"
-                value={softwareType}
-                onChange={(e) => setSoftwareType(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="VANILLA">Vanilla</option>
-                <option value="PAPER">Paper (Highly Recommended)</option>
-                <option value="PURPUR">Purpur</option>
-                <option value="SPIGOT">Spigot</option>
-                <option value="FABRIC">Fabric</option>
-                <option value="FORGE">Forge</option>
-                <option value="MAGMA">Magma</option>
-              </select>
+              <label htmlFor="softwareType" className="text-[14px] font-semibold text-apple-ink flex items-center space-x-2">
+                <Layers className="h-4 w-4 text-zinc-400" />
+                <span>Software Flavor</span>
+              </label>
+              <div className="relative">
+                <select
+                  id="softwareType"
+                  value={softwareType}
+                  onChange={(e) => setSoftwareType(e.target.value)}
+                  className="w-full h-11 px-4 border border-apple-hairline rounded-[11px] text-[15px] bg-apple-canvas focus:outline-none focus:ring-2 focus:ring-apple-primary-focus focus:border-transparent transition-all font-sans appearance-none cursor-pointer"
+                >
+                  <option value="VANILLA">Vanilla</option>
+                  <option value="PAPER">Paper (Highly Recommended)</option>
+                  <option value="PURPUR">Purpur</option>
+                  <option value="SPIGOT">Spigot</option>
+                  <option value="FABRIC">Fabric</option>
+                  <option value="FORGE">Forge</option>
+                  <option value="MAGMA">Magma</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-zinc-500">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+                    <path d="M50 80L100 130L150 80H50Z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-[12px] text-zinc-400">The distribution core used to run the server. Vanilla supports base play; Paper optimizes performance.</p>
             </div>
 
+            {/* Software Version */}
             <div className="space-y-2">
-              <Label htmlFor="softwareVersion">Version</Label>
-              <Input
+              <label htmlFor="softwareVersion" className="text-[14px] font-semibold text-apple-ink flex items-center space-x-2">
+                <Code className="h-4 w-4 text-zinc-400" />
+                <span>Target Version</span>
+              </label>
+              <input
                 id="softwareVersion"
                 type="text"
                 list="mc-versions"
                 value={softwareVersion}
                 onChange={(e) => setSoftwareVersion(e.target.value)}
                 placeholder="e.g. LATEST or 1.20.4"
+                className="w-full h-11 px-4 border border-apple-hairline rounded-[11px] text-[15px] focus:outline-none focus:ring-2 focus:ring-apple-primary-focus focus:border-transparent transition-all placeholder-zinc-400 font-sans"
               />
               <datalist id="mc-versions">
                 <option value="LATEST" />
@@ -126,28 +164,46 @@ export default function CreateServerPage() {
                 <option value="1.12.2" />
                 <option value="1.8.8" />
               </datalist>
+              <p className="text-[12px] text-zinc-400">Minecraft version to target. Type 'LATEST' or input a specific release code.</p>
             </div>
 
+            {/* Mods & Plugins list */}
             <div className="space-y-2">
-              <Label htmlFor="mods">Modrinth Plugins / Mods (Auto-Install)</Label>
+              <label htmlFor="mods" className="text-[14px] font-semibold text-apple-ink flex items-center space-x-2">
+                <span>Modrinth Add-ons (Auto-Install)</span>
+              </label>
               <textarea
                 id="mods"
                 value={mods}
                 onChange={(e) => setMods(e.target.value)}
                 placeholder="Enter a comma-separated list of Modrinth slugs or IDs (e.g. chunky, luckperms, viaversion)"
-                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 h-24 resize-y font-mono"
+                className="w-full min-h-[96px] p-4 border border-apple-hairline rounded-[11px] text-[14px] focus:outline-none focus:ring-2 focus:ring-apple-primary-focus focus:border-transparent transition-all placeholder-zinc-400 font-mono resize-y"
               />
-              <p className="text-sm text-gray-500">These will be automatically downloaded and injected into the server on startup.</p>
+              <p className="text-[12px] text-zinc-400">Modrinth integration slugs. Add-ons are dynamically parsed, compiled, and loaded into the files hierarchy on bootstrap.</p>
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={loading} className="w-full sm:w-auto">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {loading ? "Provisioning Container..." : "Deploy Server"}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+
+            {/* Action Buttons */}
+            <div className="pt-4 border-t border-zinc-100 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3">
+              <Link href="/" className="w-full sm:w-auto">
+                <button 
+                  type="button"
+                  className="w-full sm:w-auto border border-apple-hairline bg-white text-apple-ink hover:bg-apple-canvas-parchment text-[15px] font-medium h-11 px-6 rounded-full active-scale transition-all"
+                >
+                  Cancel
+                </button>
+              </Link>
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full sm:w-auto bg-apple-primary hover:bg-apple-primary-focus text-white text-[15px] font-medium h-11 px-8 rounded-full active-scale transition-all flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50 disabled:pointer-events-none"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <span>{loading ? "Provisioning Container..." : "Deploy Server"}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

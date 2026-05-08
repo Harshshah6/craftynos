@@ -53,7 +53,7 @@ export class FileService {
     }
   }
 
-  async readFile(serverId: string, targetPath: string) {
+  async readFile(serverId: string, targetPath: string, encoding: string = 'utf8') {
     const safePath = await this.getSafePath(serverId, targetPath);
     const stats = await fs.stat(safePath);
     
@@ -61,17 +61,26 @@ export class FileService {
       throw new Error('Cannot read a directory');
     }
     
+    if (encoding === 'base64') {
+      const buffer = await fs.readFile(safePath);
+      return buffer.toString('base64');
+    }
     return await fs.readFile(safePath, 'utf8');
   }
 
-  async writeFile(serverId: string, targetPath: string, content: string) {
+  async writeFile(serverId: string, targetPath: string, content: string, encoding: string = 'utf8') {
     const safePath = await this.getSafePath(serverId, targetPath);
     
     // Ensure parent directory exists
     const dir = path.dirname(safePath);
     await fs.mkdir(dir, { recursive: true });
     
-    await fs.writeFile(safePath, content, 'utf8');
+    if (encoding === 'base64') {
+      const buffer = Buffer.from(content, 'base64');
+      await fs.writeFile(safePath, buffer);
+    } else {
+      await fs.writeFile(safePath, content, 'utf8');
+    }
     return { success: true };
   }
 

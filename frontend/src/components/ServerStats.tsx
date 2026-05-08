@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Cpu, MemoryStick, HardDrive } from "lucide-react";
+import { Cpu, MemoryStick } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
 interface ServerStatsProps {
@@ -44,51 +43,54 @@ export function ServerStats({ serverId }: ServerStatsProps) {
   const ramPercent = ramLimit > 0 ? (ram / ramLimit) * 100 : 0;
 
   return (
-    <Card className="col-span-2 border-gray-200 dark:border-gray-800">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center justify-between">
-          Live Resources
-          <div className={`h-2 w-2 rounded-full ${status === 'ONLINE' ? 'bg-green-500' : 'bg-red-500'}`} />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* CPU Stats */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center space-x-2 text-gray-500 font-semibold">
-              <Cpu className="h-4 w-4" />
-              <span>CPU Usage</span>
-            </div>
-            <span className="font-mono">{cpu.toFixed(2)}%</span>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+      
+      {/* CPU Usage Card */}
+      <div className="bg-apple-canvas border border-apple-hairline rounded-[18px] p-6 space-y-4 select-none">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
+            <Cpu className="h-4 w-4 text-apple-primary" />
+            <span>CPU Load</span>
           </div>
-          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden dark:bg-gray-800">
-            <div 
-              className="h-full bg-blue-500 transition-all duration-500" 
-              style={{ width: `${Math.min(cpu, 100)}%` }} 
-            />
-          </div>
+          <span className={`h-1.5 w-1.5 rounded-full ${status === 'ONLINE' ? 'bg-green-500' : 'bg-zinc-400'}`} />
         </div>
-
-        {/* RAM Stats */}
-        <div className="space-y-2">
-          <div className="flex flex-wrap justify-between text-sm">
-            <div className="flex items-center space-x-2 text-gray-500 font-semibold">
-              <MemoryStick className="h-4 w-4" />
-              <span>Memory</span>
-            </div>
-            <span className="font-mono">
-              {ram.toFixed(0)} MB / {ramLimit > 0 ? ramLimit.toFixed(0) : '???'} MB
-            </span>
+        <div className="space-y-1">
+          <div className="text-[28px] font-bold text-apple-ink font-mono tracking-tight leading-none">
+            {cpu.toFixed(1)}<span className="text-lg font-medium text-zinc-400">%</span>
           </div>
-          <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden dark:bg-gray-800">
-            <div 
-              className="h-full bg-purple-500 transition-all duration-500" 
-              style={{ width: `${Math.min(ramPercent, 100)}%` }} 
-            />
-          </div>
+          <p className="text-[12px] text-zinc-400">Total Docker CPU resource slice</p>
         </div>
+        <div className="h-1.5 w-full bg-apple-divider-soft rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-apple-primary rounded-full transition-all duration-300" 
+            style={{ width: `${Math.min(cpu, 100)}%` }} 
+          />
+        </div>
+      </div>
 
-      </CardContent>
-    </Card>
+      {/* Memory Utilization Card */}
+      <div className="bg-apple-canvas border border-apple-hairline rounded-[18px] p-6 space-y-4 select-none">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2 text-zinc-500 font-semibold text-xs uppercase tracking-wider">
+            <MemoryStick className="h-4 w-4 text-apple-ink" />
+            <span>Memory Allocation</span>
+          </div>
+          <span className={`h-1.5 w-1.5 rounded-full ${status === 'ONLINE' ? 'bg-green-500' : 'bg-zinc-400'}`} />
+        </div>
+        <div className="space-y-1">
+          <div className="text-[28px] font-bold text-apple-ink font-mono tracking-tight leading-none">
+            {ram.toFixed(0)}<span className="text-lg font-medium text-zinc-400"> MB</span>
+          </div>
+          <p className="text-[12px] text-zinc-400">Limit: {ramLimit > 0 ? `${ramLimit.toFixed(0)} MB` : 'Dynamic'}</p>
+        </div>
+        <div className="h-1.5 w-full bg-apple-divider-soft rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-apple-ink rounded-full transition-all duration-300" 
+            style={{ width: `${Math.min(ramPercent, 100)}%` }} 
+          />
+        </div>
+      </div>
+
+    </div>
   );
 }

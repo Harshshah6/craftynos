@@ -13,11 +13,12 @@ interface ServerTerminalProps {
 export function ServerTerminal({ serverId }: ServerTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [commandInput, setCommandInput] = useState("");
 
   useEffect(() => {
     if (!terminalRef.current) return;
 
-    // Initialize xterm.js
+    // Initialize xterm.js in read-only mode for reliable log display
     const term = new Terminal({
       theme: {
         background: '#1e1e1e',
@@ -26,7 +27,7 @@ export function ServerTerminal({ serverId }: ServerTerminalProps) {
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
       fontSize: 14,
       convertEol: true, // Crucial for properly formatting \n to \r\n
-      disableStdin: false,
+      disableStdin: true, // Disable keyboard echo inputs on viewport itself
     });
     
     const fitAddon = new FitAddon();
@@ -48,38 +49,11 @@ export function ServerTerminal({ serverId }: ServerTerminalProps) {
     });
 
     newSocket.on("log", (data: string) => {
-      // Remove docker multiplexing headers if they leak through
-      // A proper fix involves demultiplexing the buffer on the daemon side, but this is a simple fallback
       term.write(data);
     });
 
     newSocket.on("disconnect", () => {
       term.writeln("\x1b[31m[CraftyNOS] Disconnected from gateway.\x1b[0m");
-    });
-
-    // Handle user input
-    let currentInput = "";
-    term.onData((data) => {
-      // Enter key
-      if (data === "\r") {
-        term.writeln("");
-        if (currentInput.trim() !== "") {
-          newSocket.emit("sendCommand", { serverId, command: currentInput });
-        }
-        currentInput = "";
-      } 
-      // Backspace
-      else if (data === "\x7f") {
-        if (currentInput.length > 0) {
-          currentInput = currentInput.slice(0, -1);
-          term.write("\b \b");
-        }
-      } 
-      // Printable characters
-      else if (data >= String.fromCharCode(0x20) && data <= String.fromCharCode(0x7e)) {
-        currentInput += data;
-        term.write(data);
-      }
     });
 
     return () => {
@@ -89,9 +63,43 @@ export function ServerTerminal({ serverId }: ServerTerminalProps) {
     };
   }, [serverId]);
 
+  const handleSendCommand = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!socket || commandInput.trim() === "") return;
+    
+    // Emit command to virtual container stdin
+    socket.emit("sendCommand", { serverId, command: commandInput });
+    setCommandInput("");
+  };
+
   return (
-    <div className="w-full h-[500px] overflow-hidden rounded-md bg-[#1e1e1e] p-2">
-      <div ref={terminalRef} className="w-full h-full" />
+    <div className="w-full flex flex-col bg-zinc-900">
+      {/* Read-only logs viewport wrapper */}
+      <div className="w-full h-[400px] overflow-hidden bg-zinc-900 p-4">
+        <div ref={terminalRef} className="w-full h-full" />
+      </div>
+
+      {/* Separate terminal command sending bar */}
+      <div className="p-4 bg-zinc-950 border-t border-zinc-800 flex items-center space-x-3">
+        <div className="text-zinc-500 font-mono text-sm pl-1 select-none">
+          $
+        </div>
+        <form onSubmit={handleSendCommand} className="flex-1 flex space-x-3">
+          <input 
+            type="text"
+            placeholder="Type a server command (e.g. /help, list, say Hello, op)..."
+            value={commandInput}
+            onChange={(e) => setCommandInput(e.target.value)}
+            className="flex-1 h-10 px-4 bg-zinc-900 border border-zinc-800 rounded-[11px] text-white text-[14px] font-mono focus:outline-none focus:ring-1 focus:ring-apple-primary-on-dark focus:border-transparent transition-all placeholder-zinc-600"
+          />
+          <button 
+            type="submit"
+            className="bg-apple-primary hover:bg-apple-primary-focus text-white text-xs md:text-sm font-semibold h-10 px-5 rounded-full active-scale transition-all flex items-center justify-center space-x-1.5 shadow-sm"
+          >
+            <span>Send</span>
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

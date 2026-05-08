@@ -88,14 +88,23 @@ export function ServerPropertiesEditor({ serverId, onSaved }: ServerPropertiesEd
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between border-b pb-4 border-gray-200 dark:border-gray-800">
-        <div className="font-mono text-sm">/server.properties</div>
-        <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Save className="mr-2 h-4 w-4" /> {saving ? "Saving..." : "Save Configuration"}
-        </Button>
+    <div className="space-y-6 select-none">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-4 border-apple-hairline">
+        <div>
+          <h4 className="text-[14px] font-semibold text-apple-ink leading-none mb-1">Instance Attributes</h4>
+          <span className="font-mono text-[12px] text-zinc-400 bg-zinc-50 px-2 py-0.5 border border-zinc-100 rounded-[6px]">/server.properties</span>
+        </div>
+        <button 
+          onClick={handleSave} 
+          disabled={saving} 
+          className="bg-apple-primary hover:bg-apple-primary-focus text-white text-xs md:text-sm font-semibold h-9 px-5 rounded-full active-scale transition-colors flex items-center justify-center space-x-1.5 shadow-sm disabled:opacity-50 w-full sm:w-auto"
+        >
+          <Save className="h-3.5 w-3.5" />
+          <span>{saving ? "Saving..." : "Save Configuration"}</span>
+        </button>
       </div>
-      <div className="h-[500px] border rounded-md overflow-hidden border-gray-200 dark:border-gray-800">
+      
+      <div className="h-[500px] border border-apple-hairline rounded-[18px] overflow-hidden">
         <Editor
           height="100%"
           language="ini"
@@ -110,8 +119,8 @@ export function ServerPropertiesEditor({ serverId, onSaved }: ServerPropertiesEd
           }}
         />
       </div>
-      <p className="text-sm text-gray-500">
-        Note: You must restart the server for configuration changes to take effect.
+      <p className="text-[13px] text-zinc-400 font-light italic">
+        * Please note that you must restart the container for these server.properties overrides to be injected into the virtual machine JVM state.
       </p>
     </div>
   );

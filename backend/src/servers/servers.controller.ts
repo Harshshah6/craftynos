@@ -43,13 +43,13 @@ export class ServersController {
   }
 
   @Get(':id/files/read')
-  async readFile(@Req() req: any, @Param('id') id: string, @Query('path') path: string) {
-    return this.serversService.readFile(req.user.id, id, path);
+  async readFile(@Req() req: any, @Param('id') id: string, @Query('path') path: string, @Query('encoding') encoding?: string) {
+    return this.serversService.readFile(req.user.id, id, path, encoding);
   }
 
   @Put(':id/files/write')
-  async writeFile(@Req() req: any, @Param('id') id: string, @Body() body: { path: string; content: string }) {
-    return this.serversService.writeFile(req.user.id, id, body.path, body.content);
+  async writeFile(@Req() req: any, @Param('id') id: string, @Body() body: { path: string; content: string; encoding?: string }) {
+    return this.serversService.writeFile(req.user.id, id, body.path, body.content, body.encoding);
   }
 
   @Delete(':id/files')
