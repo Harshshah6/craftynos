@@ -75,6 +75,49 @@ export class DockerService {
     }
   }
 
+  async updateServerDomain(uuid: string, newDomain: string) {
+    const containerName = `craftynos-${uuid}`;
+    const container = this.docker.getContainer(containerName);
+
+    try {
+      // 1. Inspect container to get its current configuration
+      const info = await container.inspect();
+      const wasRunning = info.State.Running;
+
+      // 2. Remove the existing container
+      await container.remove({ force: true });
+
+      // 3. Recreate the container with the updated mc.domain label
+      const config = info.Config || {};
+      const hostConfig = info.HostConfig || {};
+
+      config.Labels = config.Labels || {};
+      config.Labels['mc.domain'] = newDomain;
+
+      const newContainer = await this.docker.createContainer({
+        Image: info.Image,
+        name: containerName,
+        OpenStdin: config.OpenStdin,
+        Tty: config.Tty,
+        Env: config.Env,
+        Labels: config.Labels,
+        HostConfig: hostConfig,
+        ExposedPorts: config.ExposedPorts
+      });
+
+      // 4. If container was running, boot it back up
+      if (wasRunning) {
+        await newContainer.start();
+      }
+    } catch (err: any) {
+      if (err?.statusCode === 404) {
+        console.log(`Container ${containerName} not found during domain update, skipping Docker recreation.`);
+        return;
+      }
+      throw err;
+    }
+  }
+
 
   async startContainer(containerId: string) {
     const container = this.docker.getContainer(containerId);

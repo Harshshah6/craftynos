@@ -31,6 +31,28 @@ app.post('/servers/create', async (req, res) => {
   }
 });
 
+app.post('/servers/:id/update-domain', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { domain } = req.body;
+    await dockerService.updateServerDomain(id, domain);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/servers/:id/command', async (req, res) => {
+  try {
+    const { id } = req.params; // this is craftynos-${uuid}
+    const { command } = req.body;
+    const output = await dockerService.sendCommand(id, command);
+    res.json({ success: true, output });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 
 app.post('/servers/:id/:action', async (req, res) => {
   try {

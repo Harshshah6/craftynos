@@ -62,6 +62,24 @@ export class ServersController {
     return this.serversService.renameFile(req.user.id, id, body.oldPath, body.newPath);
   }
 
+  @Put(':id/rename')
+  async renameServer(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { name?: string; domain?: string }
+  ) {
+    return this.serversService.renameAndRedomainServer(req.user.id, id, body.name, body.domain);
+  }
+
+  @Post(':id/command')
+  async sendCommand(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { command: string }
+  ) {
+    return this.serversService.sendConsoleCommand(req.user.id, id, body.command);
+  }
+
   @Delete(':id')
   async deleteServer(@Req() req: any, @Param('id') id: string) {
     return this.serversService.deleteServer(req.user.id, id);

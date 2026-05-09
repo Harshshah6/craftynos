@@ -32,10 +32,20 @@ export class ServersService {
     }
 
     // 2. Assign a domain (using mc-router)
-    // Create a subdomain based on the server name and a random slug
+    // Create a subdomain based on the server name
     const cleanName = name.replace(/\s+/g, '-').toLowerCase().replace(/[^a-z0-9-]/g, '');
-    const shortUuid = crypto.randomUUID().split('-')[0];
-    const domain = `${cleanName}-${shortUuid}.lulli.qzz.io`;
+    const baseDomain = `${cleanName}.lulli.qzz.io`;
+    
+    // Check if the base domain already exists in DB
+    const existingServer = await this.prisma.server.findUnique({
+      where: { domain: baseDomain }
+    });
+
+    let domain = baseDomain;
+    if (existingServer) {
+      const shortUuid = crypto.randomUUID().split('-')[0];
+      domain = `${cleanName}-${shortUuid}.lulli.qzz.io`;
+    }
 
     // 3. Save to DB
     const server = await this.prisma.server.create({
@@ -84,6 +94,88 @@ export class ServersService {
         data: { status: 'CRASHED' },
       });
       throw new Error('Failed to communicate with Node Daemon');
+    }
+  }
+
+  async renameAndRedomainServer(userId: string, serverId: string, name?: string, subdomain?: string) {
+    const server = await this.getOwnedServer(userId, serverId);
+
+    let finalDomain = server.domain;
+    
+    if (subdomain !== undefined && subdomain !== null) {
+      // Normalize subdomain input
+      let cleanSubdomain = subdomain.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      // If they passed a full domain like 'foo.lulli.qzz.io', extract just the subdomain part
+      if (cleanSubdomain.endsWith('.lulli.qzz.io')) {
+        cleanSubdomain = cleanSubdomain.replace('.lulli.qzz.io', '');
+      }
+      
+      // Empty check
+      if (!cleanSubdomain) {
+        throw new Error('Subdomain cannot be empty.');
+      }
+      
+      finalDomain = `${cleanSubdomain}.lulli.qzz.io`;
+      
+      // Check if domain is already taken by another server
+      const existing = await this.prisma.server.findUnique({
+        where: { domain: finalDomain }
+      });
+      
+      if (existing && existing.id !== server.id) {
+        throw new Error(`Domain ${finalDomain} is already registered to another server.`);
+      }
+    }
+
+    // Prepare DB updates
+    const dataToUpdate: any = {};
+    if (name !== undefined && name !== null && name.trim() !== '') {
+      dataToUpdate.name = name.trim();
+    }
+    
+    if (finalDomain !== server.domain) {
+      dataToUpdate.domain = finalDomain;
+    }
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      return { success: true, server };
+    }
+
+    // If domain changed, call the daemon to update Docker container label
+    if (finalDomain !== server.domain) {
+      try {
+        const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/${server.uuid}/update-domain`;
+        this.logger.log(`Calling daemon at ${daemonUrl} to update domain to ${finalDomain}`);
+        await firstValueFrom(
+          this.httpService.post(daemonUrl, { domain: finalDomain })
+        );
+      } catch (error: any) {
+        this.logger.error(`Failed to update domain on daemon: ${error.message}`);
+        throw new Error('Failed to update routing labels on Node Daemon');
+      }
+    }
+
+    // Update in DB
+    const updatedServer = await this.prisma.server.update({
+      where: { id: serverId },
+      data: dataToUpdate,
+    });
+
+    return { success: true, server: updatedServer };
+  }
+
+  async sendConsoleCommand(userId: string, serverId: string, command: string) {
+    const server = await this.getOwnedServer(userId, serverId);
+    const daemonUrl = `${server.node.address}:${server.node.daemonPort}/servers/craftynos-${server.uuid}/command`;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(daemonUrl, { command })
+      );
+      return response.data;
+    } catch (error: any) {
+      this.logger.error(`Command execution failed: ${error.message}`);
+      throw new Error('Failed to run console command on Node Daemon');
     }
   }
 
